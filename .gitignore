@@ -3,3 +3,8 @@ node_modules/
 .env
 __pycache__/
 *.pyc
+
+# 데이터/자료 (Google Drive에 별도 보관, 분석 용도로만 로컬 사용)
+data/
+과제소개자료/
+*.pdf
