@@ -1,0 +1,1222 @@
+<title>공시 Agent 데이터셋 EDA</title>
+<style>
+  :root {
+    color-scheme: light;
+    --page:        #f9f9f7;
+    --surface:     #fcfcfb;
+    --surface-2:   #f3f2ee;
+    --ink:         #0b0b0b;
+    --ink-2:       #52514e;
+    --ink-muted:   #898781;
+    --grid:        #e1e0d9;
+    --baseline:    #c3c2b7;
+    --border:      rgba(11,11,11,0.10);
+
+    --c-periodic:  #2a78d6; /* blue   */
+    --c-major:     #eb6834; /* orange */
+    --c-exchange:  #1baf7a; /* aqua   */
+    --c-holding:   #eda100; /* yellow */
+    --c-blue:      #2a78d6;
+
+    --good:      #0ca30c;
+    --warning:   #b9790a;
+    --critical:  #d03b3b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --page:        #0d0d0d;
+      --surface:     #1a1a19;
+      --surface-2:   #212120;
+      --ink:         #ffffff;
+      --ink-2:       #c3c2b7;
+      --ink-muted:   #898781;
+      --grid:        #2c2c2a;
+      --baseline:    #383835;
+      --border:      rgba(255,255,255,0.10);
+
+      --c-periodic:  #3987e5;
+      --c-major:     #d95926;
+      --c-exchange:  #199e70;
+      --c-holding:   #c98500;
+      --c-blue:      #3987e5;
+
+      --good:      #0ca30c;
+      --warning:   #fab219;
+      --critical:  #e66767;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page:        #0d0d0d;
+    --surface:     #1a1a19;
+    --surface-2:   #212120;
+    --ink:         #ffffff;
+    --ink-2:       #c3c2b7;
+    --ink-muted:   #898781;
+    --grid:        #2c2c2a;
+    --baseline:    #383835;
+    --border:      rgba(255,255,255,0.10);
+
+    --c-periodic:  #3987e5;
+    --c-major:     #d95926;
+    --c-exchange:  #199e70;
+    --c-holding:   #c98500;
+    --c-blue:      #3987e5;
+
+    --good:      #0ca30c;
+    --warning:   #fab219;
+    --critical:  #e66767;
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    background: var(--page);
+    color: var(--ink);
+    font-family: system-ui, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", "Segoe UI", sans-serif;
+    margin: 0;
+  }
+  body { padding: 0 0 96px; }
+
+  .wrap { max-width: 1160px; margin: 0 auto; padding: 0 28px; }
+
+  /* ---------- header ---------- */
+  header.hero {
+    padding: 56px 0 36px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 40px;
+  }
+  .eyebrow {
+    font-size: 12.5px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--c-blue);
+    margin: 0 0 10px;
+  }
+  h1 {
+    font-size: clamp(26px, 4vw, 38px);
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    line-height: 1.2;
+    margin: 0 0 12px;
+    text-wrap: balance;
+    max-width: 22ch;
+  }
+  .lede {
+    font-size: 15.5px;
+    line-height: 1.65;
+    color: var(--ink-2);
+    max-width: 62ch;
+    margin: 0 0 32px;
+  }
+
+  .stat-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .stat-tile {
+    background: var(--surface);
+    padding: 18px 18px 16px;
+  }
+  .stat-tile .label {
+    font-size: 11.5px;
+    color: var(--ink-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin: 0 0 6px;
+  }
+  .stat-tile .value {
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    font-variant-numeric: proportional-nums;
+  }
+  .stat-tile .value small { font-size: 14px; font-weight: 600; color: var(--ink-2); }
+
+  /* ---------- section chrome ---------- */
+  section { margin-bottom: 52px; }
+  .section-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 18px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .section-head h2 {
+    font-size: 20px;
+    font-weight: 800;
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+  .section-head .source {
+    font-size: 12px;
+    color: var(--ink-muted);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    white-space: nowrap;
+  }
+  .section-note {
+    font-size: 13.5px;
+    color: var(--ink-2);
+    line-height: 1.6;
+    margin: -6px 0 20px;
+    max-width: 76ch;
+  }
+
+  .chart-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+    gap: 18px;
+  }
+  .chart-grid.span-full > .card { grid-column: 1 / -1; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 22px 18px;
+  }
+  .card h3 {
+    font-size: 14px;
+    font-weight: 700;
+    margin: 0 0 2px;
+  }
+  .card .sub {
+    font-size: 12px;
+    color: var(--ink-muted);
+    margin: 0 0 14px;
+  }
+  .chart-scroll { overflow-x: auto; }
+  .chart-scroll svg { display: block; }
+
+  /* legend */
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    margin-top: 12px;
+    font-size: 12px;
+    color: var(--ink-2);
+  }
+  .legend .item { display: flex; align-items: center; gap: 6px; }
+  .legend .swatch { width: 10px; height: 10px; border-radius: 2px; flex: none; }
+
+  /* insight cards */
+  .insight-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 14px;
+  }
+  .insight {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--sev-color, var(--ink-muted));
+    border-radius: 10px;
+    padding: 16px 18px;
+  }
+  .insight .tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--sev-color, var(--ink-muted));
+    margin-bottom: 8px;
+  }
+  .insight .tag::before {
+    content: "";
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--sev-color, var(--ink-muted));
+  }
+  .insight p { font-size: 13.5px; line-height: 1.6; margin: 0; color: var(--ink); }
+  .insight.good   { --sev-color: var(--good); }
+  .insight.warn   { --sev-color: var(--warning); }
+  .insight.crit   { --sev-color: var(--critical); }
+
+  /* tooltip */
+  #viz-tooltip {
+    position: fixed;
+    pointer-events: none;
+    background: var(--ink);
+    color: var(--page);
+    font-size: 12px;
+    line-height: 1.5;
+    padding: 7px 10px;
+    border-radius: 6px;
+    z-index: 1000;
+    opacity: 0;
+    transition: opacity 0.08s ease;
+    max-width: 240px;
+    white-space: nowrap;
+  }
+  #viz-tooltip.show { opacity: 1; }
+  #viz-tooltip b { font-variant-numeric: tabular-nums; }
+
+  /* bars / axis text */
+  .bar-label { fill: var(--ink-2); font-size: 11.5px; }
+  .bar-value { fill: var(--ink); font-size: 11.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .axis-muted { fill: var(--ink-muted); font-size: 10.5px; }
+  .gridline { stroke: var(--grid); stroke-width: 1; }
+  .baseline { stroke: var(--baseline); stroke-width: 1; }
+  rect.mark { cursor: default; }
+
+  /* appendix */
+  details.appendix {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 4px 22px;
+  }
+  details.appendix > summary {
+    cursor: pointer;
+    padding: 16px 0;
+    font-size: 14px;
+    font-weight: 700;
+    list-style: none;
+  }
+  details.appendix > summary::-webkit-details-marker { display: none; }
+  details.appendix > summary::before { content: "▸ "; color: var(--ink-muted); }
+  details.appendix[open] > summary::before { content: "▾ "; }
+  .appendix table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+    margin-bottom: 22px;
+  }
+  .appendix caption {
+    text-align: left;
+    font-weight: 700;
+    font-size: 13px;
+    margin-bottom: 8px;
+    color: var(--ink);
+  }
+  .appendix th, .appendix td {
+    text-align: right;
+    padding: 5px 10px;
+    border-bottom: 1px solid var(--grid);
+    font-variant-numeric: tabular-nums;
+  }
+  .appendix th:first-child, .appendix td:first-child { text-align: left; font-variant-numeric: normal; }
+  .appendix th { color: var(--ink-muted); font-weight: 600; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.03em; }
+
+  footer {
+    max-width: 1160px;
+    margin: 60px auto 0;
+    padding: 20px 28px 0;
+    border-top: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--ink-muted);
+  }
+
+  @media (max-width: 620px) {
+    .wrap { padding: 0 18px; }
+    header.hero { padding: 40px 0 28px; }
+  }
+</style>
+
+<div id="viz-tooltip"></div>
+
+<div class="wrap">
+  <header class="hero">
+    <p class="eyebrow">Disclosure Agent · Data EDA</p>
+    <h1>공시 Agent 데이터셋<br>탐색적 데이터 분석</h1>
+    <p class="lede">
+      제10회 2026 미래에셋증권 AI Festival "공시 Agent" 과제 — DART 공시 코퍼스(<code>data/3.공시/corpus</code>) 전수 분석.
+      기업 마스터, 문서 메타데이터, 원문 4,616개 XML/HTML 파일의 구조와 분포를 확인했다. 2026-08-15 기준.
+    </p>
+    <div class="stat-row" id="stat-row"></div>
+  </header>
+
+  <section id="sec-universe">
+    <div class="section-head">
+      <h2>1. 기업 유니버스</h2>
+      <span class="source">universe.csv · 70행 × 17열</span>
+    </div>
+    <p class="section-note">
+      섹터별 대표기업을 시가총액·산업대표성 기준으로 수기 선정한 70개사(KOSPI 61 / KOSDAQ 9). <code>fiscal_month</code>는 전 기업 12월로 상수(분산 없음).
+    </p>
+    <div class="chart-grid">
+      <div class="card">
+        <h3>업종(대분류)별 기업 수</h3>
+        <p class="sub">8개 업종 · 산업재가 23개사로 최다</p>
+        <div class="chart-scroll"><svg id="chart-industry"></svg></div>
+      </div>
+      <div class="card">
+        <h3>상장연도 분포</h3>
+        <p class="sub">최근 5년 이내 상장 8개사 — 정기공시 건수가 구조적으로 적음</p>
+        <div class="chart-scroll"><svg id="chart-listing"></svg></div>
+      </div>
+      <div class="card" style="grid-column: 1 / -1;">
+        <h3>시가총액 상위 15개사</h3>
+        <p class="sub">단위: 억원 · 로그 스케일(삼성전자 1,458만억 ↔ 최소 7,439억, 약 2,000배 격차)</p>
+        <div class="chart-scroll"><svg id="chart-mcap"></svg></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="sec-manifest">
+    <div class="section-head">
+      <h2>2. 문서 메타데이터</h2>
+      <span class="source">manifest.jsonl · 4,204행 × 19열</span>
+    </div>
+    <p class="section-note">
+      4개 원문 유형(<code>doc_group</code>)의 색상은 이후 모든 차트에서 동일하게 유지 — 정기공시<span class="key-periodic"></span> · 주요사항보고서<span class="key-major"></span> · 거래소공시<span class="key-exchange"></span> · 지분공시<span class="key-holding"></span>.
+    </p>
+    <div class="chart-grid">
+      <div class="card">
+        <h3>원문 유형별 문서 수</h3>
+        <p class="sub">거래소공시가 1,469건으로 최다, 주요사항보고서가 598건으로 최소</p>
+        <div class="chart-scroll"><svg id="chart-docgroup"></svg></div>
+      </div>
+      <div class="card">
+        <h3>세부 유형(doc_subtype)별 문서 수</h3>
+        <p class="sub">단일판매·공급계약체결이 1,106건으로 전체의 26%</p>
+        <div class="chart-scroll"><svg id="chart-subtype"></svg></div>
+      </div>
+      <div class="card" style="grid-column: 1 / -1;">
+        <h3>월별 제출 건수 추이 (2023-01 ~ 2026-06)</h3>
+        <p class="sub">3·5·8·11월에 뚜렷한 스파이크 — 정기공시 제출기한(결산후 45~90일)과 일치하는 계절성</p>
+        <div class="chart-scroll"><svg id="chart-monthly"></svg></div>
+      </div>
+      <div class="card">
+        <h3>원문 유형별 정정공시 비율</h3>
+        <p class="sub">거래소공시 43% vs 지분공시 3.8% — 유형별 편차가 매우 큼</p>
+        <div class="chart-scroll"><svg id="chart-correction-group"></svg></div>
+      </div>
+      <div class="card">
+        <h3>정정공시 비율 상위 10개사</h3>
+        <p class="sub">건설·EPC 계열이 상위권 — 수주 공시 정정이 잦음</p>
+        <div class="chart-scroll"><svg id="chart-correction-top"></svg></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="sec-raw">
+    <div class="section-head">
+      <h2>3. 원문 구조 (raw/)</h2>
+      <span class="source">XML 4,616개 · 5.15GB</span>
+    </div>
+    <p class="section-note">
+      정기공시·주요사항보고서·지분공시는 DART 고유 <code>DOCUMENT</code> XML 스키마, 거래소공시는 확장자만 <code>.xml</code>이고 실제 내용은 HTML 폼 — 최소 2종의 파서가 필요하다.
+    </p>
+    <div class="chart-grid">
+      <div class="card">
+        <h3>원문 유형별 문서 크기(중앙값)</h3>
+        <p class="sub">로그 스케일 · 정기공시 3.8MB vs 거래소공시 9.8KB, 약 400배 격차</p>
+        <div class="chart-scroll"><svg id="chart-filesize"></svg></div>
+      </div>
+      <div class="card">
+        <h3>원문 유형별 &lt;TABLE&gt; 태그 밀도</h3>
+        <p class="sub">로그 스케일(샘플 20건 평균) · 거래소공시는 HTML 소문자 &lt;table&gt;이라 0으로 집계</p>
+        <div class="chart-scroll"><svg id="chart-tabledensity"></svg></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="sec-insights">
+    <div class="section-head">
+      <h2>4. 핵심 발견</h2>
+    </div>
+    <div class="insight-grid">
+      <div class="insight good">
+        <p class="tag">무결성 확인</p>
+        <p>universe.csv의 <code>n_periodic/n_major/n_exchange/n_holding</code> 선언 건수와 manifest.jsonl 실제 집계가 70개사 전원 완전히 일치. 데이터 자체의 정합성 문제는 발견되지 않음.</p>
+      </div>
+      <div class="insight crit">
+        <p class="tag">스키마 설계 필수 반영</p>
+        <p>지분공시(holding) 1,083건 전건에서 <code>flr_nm</code>(제출인)이 <code>corp_name</code>(발행회사)과 다름 — 실제 제출 주체는 대량보유자(예: 국민연금, BlackRock, 계열사)다. "누가 얼마나 보유했는가" 질의에는 corp_name이 아니라 flr_nm이 핵심 엔터티.</p>
+      </div>
+      <div class="insight warn">
+        <p class="tag">파서 분리 필요</p>
+        <p>거래소공시(exchange)만 유일하게 HTML 폼 구조(span 기반 key-value). 나머지 3종(DART DOCUMENT XML)과 최소 2개의 파서 경로가 필요하다.</p>
+      </div>
+      <div class="insight">
+        <p class="tag">구조 재사용 가능</p>
+        <p>정기공시는 반도체·은행·보험·증권 등 업종과 무관하게 I~XII 표준 목차가 100% 동일(4개 업종 샘플 비교 확인). 섹션 기반 파서 하나로 70개사 전체 정기공시를 커버할 수 있다.</p>
+      </div>
+      <div class="insight warn">
+        <p class="tag">정정 이력 추적 우선순위</p>
+        <p>거래소공시 정정비율 43%, 주요사항보고서 28.9% — "최신 계약 조건이 뭐야?" 유형 질의는 원본과 정정본을 시간순으로 연결하는 로직 없이는 오답 위험이 크다.</p>
+      </div>
+    </div>
+  </section>
+
+  <details class="appendix">
+    <summary>부록 — 원자료 표 보기</summary>
+    <div id="appendix-tables"></div>
+  </details>
+
+  <footer>
+    데이터 출처: <code>data/3.공시/corpus</code> (주최측 제공, DART 공시 코퍼스) · 산출: pandas 기반 전수/샘플 집계 · 2026-08-15
+  </footer>
+</div>
+
+<script id="eda-data" type="application/json">
+{
+  "industry_counts": {
+    "산업재": 23,
+    "커뮤니케이션서비스": 12,
+    "금융": 8,
+    "IT": 7,
+    "소재": 7,
+    "건강관리": 6,
+    "필수소비재": 4,
+    "경기관련소비재": 3
+  },
+  "sector_counts": [
+    {
+      "industry": "IT",
+      "sector": "AI소프트웨어·플랫폼",
+      "n": 1
+    },
+    {
+      "industry": "IT",
+      "sector": "반도체·전자부품",
+      "n": 5
+    },
+    {
+      "industry": "IT",
+      "sector": "자동차·모빌리티",
+      "n": 1
+    },
+    {
+      "industry": "건강관리",
+      "sector": "바이오·제약",
+      "n": 6
+    },
+    {
+      "industry": "경기관련소비재",
+      "sector": "자동차·모빌리티",
+      "n": 3
+    },
+    {
+      "industry": "금융",
+      "sector": "금융·보험",
+      "n": 8
+    },
+    {
+      "industry": "산업재",
+      "sector": "2차전지",
+      "n": 2
+    },
+    {
+      "industry": "산업재",
+      "sector": "건설",
+      "n": 3
+    },
+    {
+      "industry": "산업재",
+      "sector": "로봇",
+      "n": 2
+    },
+    {
+      "industry": "산업재",
+      "sector": "방산·항공우주",
+      "n": 4
+    },
+    {
+      "industry": "산업재",
+      "sector": "신재생에너지",
+      "n": 1
+    },
+    {
+      "industry": "산업재",
+      "sector": "운송·물류",
+      "n": 2
+    },
+    {
+      "industry": "산업재",
+      "sector": "원전",
+      "n": 3
+    },
+    {
+      "industry": "산업재",
+      "sector": "전력기기",
+      "n": 3
+    },
+    {
+      "industry": "산업재",
+      "sector": "조선",
+      "n": 3
+    },
+    {
+      "industry": "소재",
+      "sector": "2차전지",
+      "n": 1
+    },
+    {
+      "industry": "소재",
+      "sector": "비철금속",
+      "n": 1
+    },
+    {
+      "industry": "소재",
+      "sector": "신재생에너지",
+      "n": 2
+    },
+    {
+      "industry": "소재",
+      "sector": "철강",
+      "n": 3
+    },
+    {
+      "industry": "커뮤니케이션서비스",
+      "sector": "AI소프트웨어·플랫폼",
+      "n": 2
+    },
+    {
+      "industry": "커뮤니케이션서비스",
+      "sector": "게임",
+      "n": 3
+    },
+    {
+      "industry": "커뮤니케이션서비스",
+      "sector": "엔터테인먼트",
+      "n": 4
+    },
+    {
+      "industry": "커뮤니케이션서비스",
+      "sector": "통신",
+      "n": 3
+    },
+    {
+      "industry": "필수소비재",
+      "sector": "소비재·유통",
+      "n": 4
+    }
+  ],
+  "market_cap_top15": [
+    {
+      "corp_name": "삼성전자",
+      "market_cap": 14586465
+    },
+    {
+      "corp_name": "SK하이닉스",
+      "market_cap": 12536435
+    },
+    {
+      "corp_name": "삼성전기",
+      "market_cap": 990438
+    },
+    {
+      "corp_name": "현대자동차",
+      "market_cap": 821079
+    },
+    {
+      "corp_name": "LG에너지솔루션",
+      "market_cap": 771030
+    },
+    {
+      "corp_name": "삼성바이오로직스",
+      "market_cap": 702697
+    },
+    {
+      "corp_name": "삼성생명",
+      "market_cap": 636000
+    },
+    {
+      "corp_name": "KB금융",
+      "market_cap": 608289
+    },
+    {
+      "corp_name": "HD현대중공업",
+      "market_cap": 509587
+    },
+    {
+      "corp_name": "기아",
+      "market_cap": 509489
+    },
+    {
+      "corp_name": "한화에어로스페이스",
+      "market_cap": 504806
+    },
+    {
+      "corp_name": "신한지주",
+      "market_cap": 495539
+    },
+    {
+      "corp_name": "두산에너빌리티",
+      "market_cap": 461845
+    },
+    {
+      "corp_name": "현대모비스",
+      "market_cap": 437331
+    },
+    {
+      "corp_name": "셀트리온",
+      "market_cap": 413015
+    }
+  ],
+  "listing_year_hist": {
+    "1973": 1,
+    "1974": 2,
+    "1975": 3,
+    "1979": 2,
+    "1984": 1,
+    "1985": 1,
+    "1987": 2,
+    "1988": 1,
+    "1989": 2,
+    "1990": 1,
+    "1991": 1,
+    "1994": 2,
+    "1995": 1,
+    "1996": 2,
+    "1998": 1,
+    "2000": 3,
+    "2001": 5,
+    "2003": 1,
+    "2005": 3,
+    "2006": 1,
+    "2007": 1,
+    "2008": 4,
+    "2009": 1,
+    "2010": 2,
+    "2011": 4,
+    "2013": 1,
+    "2014": 1,
+    "2015": 2,
+    "2016": 1,
+    "2017": 2,
+    "2018": 2,
+    "2019": 4,
+    "2020": 1,
+    "2021": 3,
+    "2022": 1,
+    "2023": 1,
+    "2024": 2,
+    "2025": 1
+  },
+  "doc_group_counts": {
+    "exchange": 1469,
+    "holding": 1083,
+    "periodic": 1054,
+    "major": 598
+  },
+  "doc_subtype_counts": {
+    "단일판매공급계약체결": 1106,
+    "대량보유상황보고서": 1083,
+    "(주요사항보고서 세부유형)": 598,
+    "quarter": 529,
+    "투자판단관련주요경영사항": 300,
+    "annual": 291,
+    "half": 234,
+    "신규시설투자등": 43,
+    "단일판매공급계약해지": 20
+  },
+  "monthly_counts": {
+    "202301": 55,
+    "202302": 76,
+    "202303": 74,
+    "202304": 86,
+    "202305": 141,
+    "202306": 87,
+    "202307": 71,
+    "202308": 128,
+    "202309": 54,
+    "202310": 69,
+    "202311": 154,
+    "202312": 98,
+    "202401": 77,
+    "202402": 65,
+    "202403": 176,
+    "202404": 91,
+    "202405": 143,
+    "202406": 90,
+    "202407": 99,
+    "202408": 147,
+    "202409": 76,
+    "202410": 106,
+    "202411": 148,
+    "202412": 119,
+    "202501": 62,
+    "202502": 78,
+    "202503": 192,
+    "202504": 110,
+    "202505": 139,
+    "202506": 71,
+    "202507": 96,
+    "202508": 147,
+    "202509": 63,
+    "202510": 89,
+    "202511": 150,
+    "202512": 131,
+    "202601": 100,
+    "202602": 93,
+    "202603": 175,
+    "202605": 76,
+    "202606": 2
+  },
+  "correction_rate_by_group": {
+    "exchange": 43.0,
+    "holding": 3.8,
+    "major": 28.9,
+    "periodic": 15.1
+  },
+  "correction_rate_top10": [
+    {
+      "corp_name": "삼성E&A",
+      "sum": 90,
+      "count": 141,
+      "rate": 63.8
+    },
+    {
+      "corp_name": "삼성바이오로직스",
+      "sum": 71,
+      "count": 117,
+      "rate": 60.7
+    },
+    {
+      "corp_name": "현대건설",
+      "sum": 75,
+      "count": 135,
+      "rate": 55.6
+    },
+    {
+      "corp_name": "대우건설",
+      "sum": 73,
+      "count": 150,
+      "rate": 48.7
+    },
+    {
+      "corp_name": "두산퓨얼셀",
+      "sum": 45,
+      "count": 103,
+      "rate": 43.7
+    },
+    {
+      "corp_name": "한전기술",
+      "sum": 29,
+      "count": 68,
+      "rate": 42.6
+    },
+    {
+      "corp_name": "한화오션",
+      "sum": 61,
+      "count": 150,
+      "rate": 40.7
+    },
+    {
+      "corp_name": "KB금융",
+      "sum": 22,
+      "count": 59,
+      "rate": 37.3
+    },
+    {
+      "corp_name": "두산로보틱스",
+      "sum": 12,
+      "count": 34,
+      "rate": 35.3
+    },
+    {
+      "corp_name": "삼성중공업",
+      "sum": 35,
+      "count": 100,
+      "rate": 35.0
+    }
+  ],
+  "filesize_by_group_kb": {
+    "exchange": 9.8,
+    "holding": 112.0,
+    "major": 29.9,
+    "periodic": 3818.4
+  },
+  "filesize_by_group_mean_kb": {
+    "exchange": 10.6,
+    "holding": 195.3,
+    "major": 37.1,
+    "periodic": 4581.7
+  },
+  "filesize_by_group_max_kb": {
+    "exchange": 21.2,
+    "holding": 9344.0,
+    "major": 259.6,
+    "periodic": 31445.2
+  },
+  "table_density": {
+    "exchange": 0.0,
+    "holding": 48.2,
+    "major": 19.6,
+    "periodic": 1181.4
+  },
+  "totals": {
+    "n_companies": 70,
+    "n_docs": 4204,
+    "n_kospi": 61,
+    "n_kosdaq": 9,
+    "n_correction": 1004,
+    "total_gb": 5.15
+  }
+}
+
+</script>
+
+<script>
+(function () {
+  const DATA = JSON.parse(document.getElementById('eda-data').textContent);
+  const NS = 'http://www.w3.org/2000/svg';
+  const tooltip = document.getElementById('viz-tooltip');
+
+  function el(tag, attrs, parent) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function fmt(n) { return n.toLocaleString('en-US'); }
+  function showTip(evt, html) {
+    tooltip.innerHTML = html;
+    tooltip.classList.add('show');
+    moveTip(evt);
+  }
+  function moveTip(evt) {
+    const pad = 14;
+    let x = evt.clientX + pad, y = evt.clientY + pad;
+    tooltip.style.left = x + 'px';
+    tooltip.style.top = y + 'px';
+  }
+  function hideTip() { tooltip.classList.remove('show'); }
+  function bindTip(node, html) {
+    node.addEventListener('mouseenter', e => showTip(e, html));
+    node.addEventListener('mousemove', moveTip);
+    node.addEventListener('mouseleave', hideTip);
+  }
+
+  const COLOR = {
+    periodic: 'var(--c-periodic)',
+    major: 'var(--c-major)',
+    exchange: 'var(--c-exchange)',
+    holding: 'var(--c-holding)',
+  };
+  const LABEL = {
+    periodic: '정기공시', major: '주요사항보고서', exchange: '거래소공시', holding: '지분공시'
+  };
+
+  // ---------------- stat row ----------------
+  const t = DATA.totals;
+  const stats = [
+    ['대상 기업', fmt(t.n_companies) + '개사', `KOSPI ${t.n_kospi} · KOSDAQ ${t.n_kosdaq}`],
+    ['수집 문서', fmt(t.n_docs) + '건', 'XML 4,616개'],
+    ['정정공시', fmt(t.n_correction) + '건', ((t.n_correction/t.n_docs)*100).toFixed(1) + '%'],
+    ['원문 용량', t.total_gb + 'GB', '4가지 원문 유형'],
+  ];
+  const statRow = document.getElementById('stat-row');
+  stats.forEach(([label, value, small]) => {
+    const tile = document.createElement('div');
+    tile.className = 'stat-tile';
+    tile.innerHTML = `<p class="label">${label}</p><div class="value">${value} <small>${small}</small></div>`;
+    statRow.appendChild(tile);
+  });
+
+  // inline legend swatches referenced in section-note
+  document.querySelectorAll('.key-periodic,.key-major,.key-exchange,.key-holding').forEach(node => {
+    const key = node.className.replace('key-', '');
+    node.style.display = 'inline-block';
+    node.style.width = '10px';
+    node.style.height = '10px';
+    node.style.borderRadius = '2px';
+    node.style.background = COLOR[key];
+    node.style.marginLeft = '4px';
+    node.style.marginBottom = '-1px';
+  });
+
+  // ---------------- column chart (vertical bars) ----------------
+  function columnChart(svgId, items, opts) {
+    opts = opts || {};
+    const svg = document.getElementById(svgId);
+    const W = opts.width || Math.max(360, items.length * (opts.colWidth || 70));
+    const H = opts.height || 220;
+    const marginL = 44, marginR = 14, marginT = 14, marginB = 34;
+    const plotW = W - marginL - marginR, plotH = H - marginT - marginB;
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    svg.setAttribute('width', W);
+    svg.setAttribute('height', H);
+
+    const logScale = !!opts.logScale;
+    const domainMax = opts.domainMax || Math.max(...items.map(d => d.value));
+    const domainMin = opts.domainMin || (logScale ? 1 : 0);
+
+    function frac(v) {
+      if (logScale) {
+        if (v <= 0) return 0;
+        const lo = Math.log10(domainMin), hi = Math.log10(domainMax);
+        return Math.max(0.015, (Math.log10(v) - lo) / (hi - lo));
+      }
+      return v / domainMax;
+    }
+
+    // gridlines (4)
+    for (let i = 0; i <= 4; i++) {
+      const y = marginT + plotH - (plotH * i / 4);
+      el('line', { x1: marginL, x2: W - marginR, y1: y, y2: y, class: 'gridline' }, svg);
+    }
+    el('line', { x1: marginL, x2: W - marginR, y1: marginT + plotH, y2: marginT + plotH, class: 'baseline' }, svg);
+
+    const bw = Math.min(40, plotW / items.length - 14);
+    const step = plotW / items.length;
+
+    items.forEach((d, i) => {
+      const cx = marginL + step * i + step / 2;
+      const bh = plotH * frac(d.value);
+      const x = cx - bw / 2;
+      const y = marginT + plotH - bh;
+      const color = d.color || opts.color || 'var(--c-blue)';
+      const r = el('rect', {
+        class: 'mark', x, y, width: bw, height: Math.max(bh, 1),
+        rx: 4, ry: 4, fill: color
+      }, svg);
+      bindTip(r, `<b>${d.label}</b><br>${opts.valueFmt ? opts.valueFmt(d.value) : fmt(d.value)}`);
+
+      // value label on cap
+      el('text', {
+        x: cx, y: y - 6, 'text-anchor': 'middle', class: 'bar-value'
+      }, svg).textContent = opts.valueFmt ? opts.valueFmt(d.value) : fmt(d.value);
+
+      // x label
+      const lbl = el('text', {
+        x: cx, y: marginT + plotH + 16, 'text-anchor': 'middle', class: 'bar-label'
+      }, svg);
+      const words = String(d.label);
+      if (words.length > 6 && opts.wrap) {
+        const mid = Math.ceil(words.length / 2);
+        el('tspan', { x: cx, dy: 0 }, lbl).textContent = words.slice(0, mid);
+        el('tspan', { x: cx, dy: 12 }, lbl).textContent = words.slice(mid);
+      } else {
+        lbl.textContent = words;
+      }
+    });
+  }
+
+  // ---------------- horizontal bar chart ----------------
+  function hBarChart(svgId, items, opts) {
+    opts = opts || {};
+    const svg = document.getElementById(svgId);
+    const rowH = opts.rowHeight || 26;
+    const W = opts.width || 640;
+    const H = items.length * rowH + 20;
+    const labelW = opts.labelWidth || 150;
+    const marginR = 70;
+    const plotW = W - labelW - marginR;
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    svg.setAttribute('width', W);
+    svg.setAttribute('height', H);
+
+    const logScale = !!opts.logScale;
+    const domainMax = opts.domainMax || Math.max(...items.map(d => d.value));
+    const domainMin = opts.domainMin || (logScale ? 1 : 0);
+    function frac(v) {
+      if (logScale) {
+        if (v <= 0) return 0;
+        const lo = Math.log10(domainMin), hi = Math.log10(domainMax);
+        return Math.max(0.02, (Math.log10(v) - lo) / (hi - lo));
+      }
+      return v / domainMax;
+    }
+
+    items.forEach((d, i) => {
+      const y = 10 + i * rowH;
+      const bh = Math.min(18, rowH - 8);
+      const bw = plotW * frac(d.value);
+      el('text', {
+        x: labelW - 10, y: y + bh / 2 + 4, 'text-anchor': 'end', class: 'bar-label'
+      }, svg).textContent = d.label;
+      el('line', {
+        x1: labelW, x2: W - marginR, y1: y + bh / 2, y2: y + bh / 2, class: 'gridline'
+      }, svg);
+      const r = el('rect', {
+        class: 'mark', x: labelW, y, width: Math.max(bw, 2), height: bh,
+        rx: 4, ry: 4, fill: d.color || opts.color || 'var(--c-blue)'
+      }, svg);
+      bindTip(r, `<b>${d.label}</b><br>${opts.valueFmt ? opts.valueFmt(d.value) : fmt(d.value)}`);
+      el('text', {
+        x: labelW + bw + 8, y: y + bh / 2 + 4, class: 'bar-value'
+      }, svg).textContent = opts.valueFmt ? opts.valueFmt(d.value) : fmt(d.value);
+    });
+  }
+
+  // ---------------- line chart ----------------
+  function lineChart(svgId, items, opts) {
+    opts = opts || {};
+    const svg = document.getElementById(svgId);
+    const W = opts.width || 1080;
+    const H = opts.height || 240;
+    const marginL = 40, marginR = 14, marginT = 16, marginB = 30;
+    const plotW = W - marginL - marginR, plotH = H - marginT - marginB;
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    svg.setAttribute('width', W);
+    svg.setAttribute('height', H);
+
+    const maxV = Math.max(...items.map(d => d.value));
+    const domainMax = Math.ceil(maxV / 50) * 50;
+
+    for (let i = 0; i <= 4; i++) {
+      const y = marginT + plotH - (plotH * i / 4);
+      el('line', { x1: marginL, x2: W - marginR, y1: y, y2: y, class: 'gridline' }, svg);
+      el('text', { x: marginL - 8, y: y + 3, 'text-anchor': 'end', class: 'axis-muted' }, svg)
+        .textContent = fmt(Math.round(domainMax * i / 4));
+    }
+    el('line', { x1: marginL, x2: W - marginR, y1: marginT + plotH, y2: marginT + plotH, class: 'baseline' }, svg);
+
+    const step = plotW / (items.length - 1);
+    const pts = items.map((d, i) => [marginL + step * i, marginT + plotH - plotH * (d.value / domainMax)]);
+
+    const areaPath = 'M' + pts.map(p => p.join(',')).join('L') +
+      `L${pts[pts.length - 1][0]},${marginT + plotH}L${pts[0][0]},${marginT + plotH}Z`;
+    el('path', { d: areaPath, fill: 'var(--c-blue)', opacity: 0.1, stroke: 'none' }, svg);
+
+    const linePath = 'M' + pts.map(p => p.join(',')).join('L');
+    el('path', { d: linePath, fill: 'none', stroke: 'var(--c-blue)', 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }, svg);
+
+    // x labels: every 3rd month (Jan/Apr/Jul/Oct-ish), keep sparse
+    items.forEach((d, i) => {
+      if (i % 3 === 0 || i === items.length - 1) {
+        el('text', { x: pts[i][0], y: H - 8, 'text-anchor': 'middle', class: 'axis-muted' }, svg)
+          .textContent = d.label.slice(2, 4) + "'" + d.label.slice(4);
+      }
+      const hit = el('circle', { cx: pts[i][0], cy: pts[i][1], r: 8, fill: 'transparent', class: 'mark' }, svg);
+      bindTip(hit, `<b>${d.label.slice(0,4)}-${d.label.slice(4)}</b><br>${fmt(d.value)}건`);
+    });
+
+    // endpoint dot
+    const last = pts[pts.length - 1];
+    el('circle', { cx: last[0], cy: last[1], r: 4, fill: 'var(--c-blue)', stroke: 'var(--surface)', 'stroke-width': 2 }, svg);
+  }
+
+  // ================= render charts =================
+
+  columnChart('chart-industry',
+    Object.entries(DATA.industry_counts).sort((a,b)=>b[1]-a[1]).map(([k,v])=>({label:k, value:v})),
+    { height: 230, colWidth: 84 }
+  );
+
+  // listing year bins
+  (function () {
+    const bins = [
+      { label: '~1989', test: y => y < 1990 },
+      { label: '1990s', test: y => y >= 1990 && y < 2000 },
+      { label: '2000s', test: y => y >= 2000 && y < 2010 },
+      { label: '2010s', test: y => y >= 2010 && y < 2020 },
+      { label: "20-22", test: y => y >= 2020 && y < 2023 },
+      { label: "23-26", test: y => y >= 2023 },
+    ];
+    const counts = bins.map(b => ({ label: b.label, value: 0 }));
+    Object.entries(DATA.listing_year_hist).forEach(([y, n]) => {
+      const yr = parseInt(y, 10);
+      const idx = bins.findIndex(b => b.test(yr));
+      counts[idx].value += n;
+    });
+    columnChart('chart-listing', counts, { height: 230, colWidth: 68, color: 'var(--c-blue)' });
+  })();
+
+  hBarChart('chart-mcap',
+    DATA.market_cap_top15.map(d => ({ label: d.corp_name, value: d.market_cap })),
+    { rowHeight: 25, width: 660, labelWidth: 110, logScale: true, domainMin: 5000, domainMax: 16000000,
+      valueFmt: v => fmt(v) + '억' }
+  );
+
+  columnChart('chart-docgroup',
+    ['exchange','holding','periodic','major'].map(k => ({
+      label: LABEL[k], value: DATA.doc_group_counts[k], color: COLOR[k]
+    })),
+    { height: 220, colWidth: 96 }
+  );
+
+  (function () {
+    const subtypeParent = {
+      '단일판매공급계약체결': 'exchange', '투자판단관련주요경영사항': 'exchange',
+      '신규시설투자등': 'exchange', '단일판매공급계약해지': 'exchange',
+      '대량보유상황보고서': 'holding',
+      'quarter': 'periodic', 'annual': 'periodic', 'half': 'periodic',
+      '(주요사항보고서 세부유형)': 'major',
+    };
+    const items = Object.entries(DATA.doc_subtype_counts)
+      .sort((a,b)=>b[1]-a[1])
+      .map(([k,v]) => ({ label: k, value: v, color: COLOR[subtypeParent[k]] }));
+    hBarChart('chart-subtype', items, { rowHeight: 27, width: 640, labelWidth: 160 });
+  })();
+
+  (function () {
+    const items = Object.entries(DATA.monthly_counts).map(([k,v]) => ({ label: k, value: v }));
+    lineChart('chart-monthly', items, { width: 1080, height: 220 });
+  })();
+
+  columnChart('chart-correction-group',
+    ['exchange','major','periodic','holding'].map(k => ({
+      label: LABEL[k], value: DATA.correction_rate_by_group[k], color: COLOR[k]
+    })),
+    { height: 220, colWidth: 96, valueFmt: v => v + '%' }
+  );
+
+  hBarChart('chart-correction-top',
+    DATA.correction_rate_top10.map(d => ({ label: d.corp_name, value: d.rate })),
+    { rowHeight: 25, width: 640, labelWidth: 110, valueFmt: v => v + '%' }
+  );
+
+  columnChart('chart-filesize',
+    ['exchange','major','holding','periodic'].map(k => ({
+      label: LABEL[k], value: DATA.filesize_by_group_kb[k], color: COLOR[k]
+    })),
+    { height: 220, colWidth: 96, logScale: true, domainMin: 5, domainMax: 5000,
+      valueFmt: v => v >= 1024 ? (v/1024).toFixed(1) + 'MB' : v + 'KB' }
+  );
+
+  columnChart('chart-tabledensity',
+    ['exchange','major','holding','periodic'].map(k => ({
+      label: LABEL[k], value: DATA.table_density[k], color: COLOR[k]
+    })),
+    { height: 220, colWidth: 96, logScale: true, domainMin: 1, domainMax: 1300,
+      valueFmt: v => v.toFixed(0) + '개' }
+  );
+
+  // ================= appendix tables =================
+  (function () {
+    const box = document.getElementById('appendix-tables');
+
+    function table(caption, rows, headers) {
+      const wrap = document.createElement('div');
+      wrap.style.overflowX = 'auto';
+      const t = document.createElement('table');
+      const cap = document.createElement('caption');
+      cap.textContent = caption;
+      t.appendChild(cap);
+      const thead = document.createElement('tr');
+      headers.forEach(h => { const th = document.createElement('th'); th.textContent = h; thead.appendChild(th); });
+      t.appendChild(thead);
+      rows.forEach(r => {
+        const tr = document.createElement('tr');
+        r.forEach(c => { const td = document.createElement('td'); td.textContent = c; tr.appendChild(td); });
+        t.appendChild(tr);
+      });
+      wrap.appendChild(t);
+      box.appendChild(wrap);
+    }
+
+    table('업종별 기업 수', Object.entries(DATA.industry_counts).sort((a,b)=>b[1]-a[1]),
+      ['업종', '기업 수']);
+
+    table('원문 유형별 문서 수 / 정정비율 / 중앙값 크기 / TABLE 밀도',
+      ['periodic','major','exchange','holding'].map(k => [
+        LABEL[k], fmt(DATA.doc_group_counts[k]), DATA.correction_rate_by_group[k] + '%',
+        DATA.filesize_by_group_kb[k] + 'KB', DATA.table_density[k]
+      ]),
+      ['유형', '문서수', '정정비율', '중앙값크기', 'TABLE밀도']);
+
+    table('정정공시 비율 상위 10개사',
+      DATA.correction_rate_top10.map(d => [d.corp_name, d.sum, d.count, d.rate + '%']),
+      ['기업', '정정건수', '전체건수', '비율']);
+
+    table('시가총액 상위 15개사 (억원)',
+      DATA.market_cap_top15.map(d => [d.corp_name, fmt(d.market_cap)]),
+      ['기업', '시가총액(억원)']);
+  })();
+})();
+</script>
