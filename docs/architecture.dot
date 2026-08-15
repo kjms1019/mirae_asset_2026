@@ -1,0 +1,75 @@
+digraph architecture {
+  rankdir=TB;
+  bgcolor="#fcfcfb";
+  fontname="Helvetica";
+  fontsize=13;
+  labelloc="t";
+  label="공시 Agent — 데이터 · 아키텍처 설계 (2026-08-15)";
+  fontcolor="#0b0b0b";
+
+  node [fontname="Helvetica", fontsize=11, shape=box, style="rounded,filled", color="#c3c2b7", fontcolor="#0b0b0b"];
+  edge [fontname="Helvetica", fontsize=9.5, color="#898781", fontcolor="#52514e"];
+
+  subgraph cluster_source {
+    label="① 원천 데이터 (주최측 제공)";
+    style="rounded"; color="#c3c2b7"; fontsize=12; fontcolor="#52514e";
+    raw_periodic [label="정기·주요사항·지분공시\nDART DOCUMENT XML\n(SECTION/TITLE/TABLE)", fillcolor="#cde2fb"];
+    raw_exchange [label="거래소공시\nHTML 폼(span)\n확장자만 .xml", fillcolor="#cde2fb"];
+    meta [label="universe.csv\nmanifest.jsonl\n(기업마스터·문서메타)", fillcolor="#cde2fb"];
+  }
+
+  subgraph cluster_parse {
+    label="② 파싱 계층 — doc_group별 파서 분리";
+    style="rounded"; color="#c3c2b7"; fontsize=12; fontcolor="#52514e";
+    parser_xml [label="DART XML 파서\n(lib/parser.py, 구현됨)\n표 구조 보존 → \"라벨 | 값1 | 값2\"", fillcolor="#ffffff"];
+    parser_html [label="HTML 폼 파서\n(계획, 미구현)\nspan key-value 추출", fillcolor="#f3f2ee", style="rounded,filled,dashed"];
+  }
+
+  subgraph cluster_store {
+    label="③ 저장 계층 — 3-layer 하이브리드";
+    style="rounded"; color="#c3c2b7"; fontsize=12; fontcolor="#52514e";
+
+    fact_db [label="구조화 팩트 테이블\n(계획, 미구현)\n기업×연도×계정과목 → 수치\nSQL/parquet, 임베딩 불필요", fillcolor="#f3f2ee", style="rounded,filled,dashed"];
+    vector_idx [label="벡터 검색 인덱스\n(구현됨 — 데모 범위 10개사)\n섹션 청킹 + Gemini 임베딩\nindex/chunks.json + embeddings.npy\n인메모리 코사인 유사도", fillcolor="#b7d3f6"];
+    edge_table [label="관계 엣지 테이블\n(계획, 미구현)\ncorrections(원본↔정정)\nownership_edges(보유자↔대상,%)\n소규모 → networkx 인메모리 순회", fillcolor="#f3f2ee", style="rounded,filled,dashed"];
+  }
+
+  subgraph cluster_query {
+    label="④ 질의 처리 (계획 — 데모는 단일 RAG 경로만 구현)";
+    style="rounded"; color="#c3c2b7"; fontsize=12; fontcolor="#52514e";
+    router [label="질문 라우터\n(계획) closed/open 판별\n→ 필요한 조회 계층 선택", fillcolor="#f3f2ee", style="rounded,filled,dashed"];
+    tool_lookup [label="structured_lookup", fillcolor="#f3f2ee", style="rounded,filled,dashed"];
+    tool_search [label="semantic_search\n(구현됨, app.py)", fillcolor="#b7d3f6"];
+    tool_chain [label="correction_chain /\nownership_lookup", fillcolor="#f3f2ee", style="rounded,filled,dashed"];
+    tool_calc [label="compare_and_calc", fillcolor="#f3f2ee", style="rounded,filled,dashed"];
+  }
+
+  llm [label="답변 생성 LLM\n데모: Gemini 2.5 Flash\n최종 제출: HyperCLOVA X (필수)", shape=box, style="rounded,filled", fillcolor="#fde9d9", color="#eb6834"];
+  answer [label="근거 표시 답변\n(기업·공시명·공시일·섹션)", shape=box, style="rounded,filled", fillcolor="#e1f5ea", color="#1baf7a"];
+
+  raw_periodic -> parser_xml;
+  raw_exchange -> parser_html;
+  meta -> fact_db [style=dashed];
+  meta -> vector_idx [label="조인 키(corp_name·rcept_no)"];
+
+  parser_xml -> fact_db [style=dashed, label="재무제표 표\n(계획)"];
+  parser_xml -> vector_idx [label="섹션 청크\n(구현됨)"];
+  parser_html -> edge_table [style=dashed, label="계약/정정 이력"];
+  meta -> edge_table [style=dashed, label="지분공시 flr_nm↔corp_name"];
+
+  router -> tool_lookup [style=dashed];
+  router -> tool_search;
+  router -> tool_chain [style=dashed];
+  router -> tool_calc [style=dashed];
+
+  fact_db -> tool_lookup [style=dashed];
+  vector_idx -> tool_search;
+  edge_table -> tool_chain [style=dashed];
+
+  tool_lookup -> llm [style=dashed];
+  tool_search -> llm;
+  tool_chain -> llm [style=dashed];
+  tool_calc -> llm [style=dashed];
+
+  llm -> answer;
+}
