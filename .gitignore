@@ -8,3 +8,9 @@ __pycache__/
 data/
 과제소개자료/
 *.pdf
+
+# 전처리 산출물 — lib/ingest.py 로 결정론적으로 재생성되므로 git에 두지 않는다
+# (제출 시에는 클라우드 스토리지 링크로 대체 가능, 주최측 Q&A 확인)
+index/*.db
+index/*.db-wal
+index/*.db-shm
