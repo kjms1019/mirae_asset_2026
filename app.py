@@ -32,6 +32,26 @@ def get_tools():
     return Tools(conn)
 
 
+def stop_with_setup_help(exc: Exception) -> None:
+    """DB가 없을 때 트레이스백 대신 무엇을 하면 되는지 알려준다."""
+    st.error("조회할 데이터베이스를 찾지 못했습니다.")
+    st.markdown(
+        f"""
+`{exc}`
+
+**코퍼스가 있다면** 전처리를 돌리면 됩니다 (8~10분):
+
+```bash
+python -m lib.ingest
+```
+
+**코퍼스가 없다면** 저장소에 동봉된 배포본이 있어야 합니다.
+`index/disclosure.db.gz` 가 받아졌는지 확인해 주세요 — 처음 실행할 때
+자동으로 풀립니다.
+""")
+    st.stop()
+
+
 @st.cache_data
 def get_stats():
     conn = store.connect()
@@ -91,8 +111,11 @@ def gemini_writer():
     return write
 
 
-tools = get_tools()
-stats = get_stats()
+try:
+    tools = get_tools()
+    stats = get_stats()
+except store.DatabaseMissing as exc:
+    stop_with_setup_help(exc)
 exam = get_exam()
 
 st.title("📊 공시 Agent")

@@ -15,11 +15,18 @@
   정정 280건도 최신 상태는 정확하게 나온다 — 연결할 원본이 필요 없기 때문이다.
   조회 시점에 asserted_at 이 가장 늦은 주장을 채택하는 것이 fold 규칙이다.
 """
+import gzip
 import json
 import os
+import shutil
 import sqlite3
+import sys
+import tempfile
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "..", "index", "disclosure.db")
+#: 배포본. 원본 DB는 76MB라 git 에 두기엔 크지만 gzip 은 16MB 라 얹을 수 있다.
+#: Streamlit Cloud 처럼 코퍼스가 없는 환경에서는 이것만으로 데모가 돈다.
+DB_GZ_PATH = DB_PATH + ".gz"
 
 SCHEMA = """
 PRAGMA journal_mode=WAL;
@@ -153,7 +160,56 @@ CREATE TABLE IF NOT EXISTS ingest_log (
 """
 
 
-def connect(path: str = DB_PATH) -> sqlite3.Connection:
+class DatabaseMissing(RuntimeError):
+    """DB도 배포본도 없을 때. 호출부가 안내 문구를 띄울 수 있게 별도 예외로 둔다."""
+
+
+def ensure_db(path: str = DB_PATH) -> str:
+    """조회 가능한 DB 경로를 보장한다.
+
+    코퍼스(5.15GB)가 없는 환경 — 팀원 로컬이나 Streamlit Cloud — 에서도 데모가
+    돌아야 하므로, DB가 없으면 저장소에 동봉된 gzip 배포본을 풀어서 쓴다.
+    저장소 디렉토리가 읽기 전용일 수 있어 쓰기에 실패하면 임시 디렉토리로 뺀다.
+    """
+    if os.path.exists(path):
+        return path
+    if not os.path.exists(DB_GZ_PATH):
+        raise DatabaseMissing(
+            "조회할 DB가 없습니다. 코퍼스가 있으면 `python -m lib.ingest` 로 만들고, "
+            "없으면 저장소의 index/disclosure.db.gz 가 있어야 합니다.")
+    for target in (path, os.path.join(tempfile.gettempdir(), "disclosure.db")):
+        try:
+            os.makedirs(os.path.dirname(os.path.abspath(target)), exist_ok=True)
+            with gzip.open(DB_GZ_PATH, "rb") as src, open(target, "wb") as dst:
+                shutil.copyfileobj(src, dst)
+            return target
+        except OSError:
+            continue
+    raise DatabaseMissing("배포본 압축을 풀 수 있는 위치를 찾지 못했습니다.")
+
+
+def pack(path: str = DB_PATH) -> str:
+    """적재가 끝난 DB를 배포용 gzip 으로 압축한다 (76MB → 약 16MB)."""
+    conn = sqlite3.connect(path)
+    conn.execute("DELETE FROM ingest_log")     # 적재 진행 로그는 배포에 불필요
+    conn.commit()
+    conn.execute("VACUUM")
+    conn.close()
+    with open(path, "rb") as src, gzip.open(DB_GZ_PATH, "wb", compresslevel=9) as dst:
+        shutil.copyfileobj(src, dst)
+    return DB_GZ_PATH
+
+
+def connect(path: str | None = None) -> sqlite3.Connection:
+    path = ensure_db(path or DB_PATH)
+    conn = sqlite3.connect(path)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys=ON")
+    return conn
+
+
+def connect_for_write(path: str = DB_PATH) -> sqlite3.Connection:
+    """적재용 — 없으면 새로 만든다(배포본을 풀지 않는다)."""
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
@@ -185,3 +241,11 @@ def counts(conn: sqlite3.Connection) -> dict:
     for t in ("corps", "corp_alias", "docs", "claims", "edges", "contracts", "chunks"):
         out[t] = conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
     return out
+
+
+if __name__ == "__main__":
+    if len(sys.argv) > 1 and sys.argv[1] == "pack":
+        out = pack()
+        print(f"[배포본] {out}  ({os.path.getsize(out)/1e6:.1f} MB)")
+    else:
+        print("usage: python -m lib.store pack")

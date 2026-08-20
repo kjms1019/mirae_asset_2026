@@ -21,15 +21,22 @@ DART 공시 데이터를 근거로 자연어 질의에 검색·비교·계산·�
 
 ```bash
 pip install -r requirements.txt
-
-# 전처리 — data/3.공시/corpus 가 있어야 하며, 약 8~10분 소요
-python -m lib.ingest            # index/disclosure.db 생성
-
-streamlit run app.py            # API 키 없이 그대로 동작
+streamlit run app.py            # 코퍼스도 API 키도 필요 없다
 ```
 
-`index/disclosure.db`(약 80MB)는 git에 포함하지 않는다. 원장에서 결정론적으로 재생성되는
-파생물이라 스크립트로 언제든 다시 만들 수 있고, 그게 이 설계의 요점이기도 하다.
+저장소에 **적재 완료된 DB의 압축본**(`index/disclosure.db.gz`, 16MB)이 들어 있어서,
+5.15GB 코퍼스가 없어도 데모가 바로 돈다. 첫 실행 때 자동으로 풀린다.
+
+코퍼스를 갖고 있고 직접 다시 만들려면:
+
+```bash
+python -m lib.ingest            # 전처리, 8~10분
+python -m lib.store pack        # 배포본 갱신 (76MB → 16MB)
+```
+
+원본 DB(76MB)는 git에 두지 않는다. 원장에서 결정론적으로 재생성되는 파생물이라
+스크립트로 언제든 다시 만들 수 있고, 그게 이 설계의 요점이기도 하다. 압축본만
+얹어두는 이유는 팀원과 배포 환경이 코퍼스 없이도 돌려볼 수 있게 하기 위해서다.
 
 ## 저장소 구조
 

@@ -633,7 +633,7 @@ STAGES = {
 
 def main(argv):
     names = argv[1:] or list(STAGES)
-    conn = store.connect()
+    conn = store.connect_for_write()
     store.init_schema(conn)
     for name in names:
         fn = STAGES.get(name)
